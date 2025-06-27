@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数字迷宫</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#F59E0B',
+                        dark: '#1F2937',
+                        light: '#F9FAFB'
+                    },
+                    fontFamily: {
+                        game: ['"Comic Sans MS"', 'cursive', 'sans-serif'],
+                        pixel: ['"Press Start 2P"', 'cursive']
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .maze-cell {
+                @apply w-12 h-12 border border-gray-300 flex items-center justify-center text-xl font-bold transition-all duration-200;
+            }
+            .maze-wall {
+                @apply bg-gray-700 border-gray-800;
+            }
+            .maze-path {
+                @apply bg-white;
+            }
+            .maze-start {
+                @apply bg-green-500 text-white;
+            }
+            .maze-end {
+                @apply bg-red-500 text-white;
+            }
+            .maze-player {
+                @apply bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transform transition-all duration-300;
+            }
+            .maze-question {
+                @apply bg-accent/20 border-accent;
+            }
+            .btn-game {
+                @apply px-6 py-3 rounded-lg font-bold text-white shadow-lg transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2;
+            }
+            .btn-direction {
+                @apply w-16 h-16 md:w-20 md:h-20 rounded-full bg-primary/90 text-white flex items-center justify-center shadow-lg hover:bg-primary transition-all duration-300;
+            }
+            .animate-pulse-slow {
+                animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+            }
+            .keyboard-control {
+                @apply bg-gray-200 border border-gray-300 rounded-lg py-1 px-2 text-xs font-mono text-gray-700;
+            }
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.5; }
+            }
+            @keyframes bounce {
+                0%, 100% { transform: translateY(0); }
+                50% { transform: translateY(-10px); }
+            }
+            .animate-bounce-slow {
+                animation: bounce 2s infinite;
+            }
+            .question-hint {
+                @apply bg-yellow-100 text-yellow-800 py-2 px-4 rounded-lg text-sm mt-3 transition-all duration-300;
+            }
+            .maze-loading {
+                @apply absolute inset-0 flex items-center justify-center bg-white/80 z-10;
+            }
+            .maze-path-highlight {
+                @apply bg-green-100;
+            }
+            .icon {
+                @apply w-6 h-6;
+            }
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen flex flex-col">
+    <!-- 游戏容器 -->
+    <div class="container mx-auto px-4 py-8 flex-1 flex flex-col">
+        <!-- 游戏标题 -->
+        <div class="text-center mb-6">
+            <h1 class="text-[clamp(2rem,5vw,3.5rem)] font-pixel text-primary mb-2 tracking-wider">数字迷宫</h1>
+            <p class="text-gray-600 text-lg max-w-2xl mx-auto">通过计算数学题，找到从入口到出口的路径！</p>
+            <div class="mt-4 flex justify-center">
+              
+            </div>
+        </div>
+
+        <!-- 游戏状态面板 -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-white rounded-xl shadow-lg p-4 flex items-center">
+                <div class="bg-primary/20 rounded-full p-3 mr-4">
+                    <img src="clock-icon.svg" alt="Timer" class="icon">
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">用时</p>
+                    <p id="timer" class="text-2xl font-pixel text-primary">00:00</p>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-4 flex items-center">
+                <div class="bg-secondary/20 rounded-full p-3 mr-4">
+                    <img src="calculator-icon.svg" alt="Questions" class="icon">
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">已完成题目</p>
+                    <p id="questions-count" class="text-2xl font-pixel text-secondary">0/0</p>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-lg p-4 flex items-center">
+                <div class="bg-accent/20 rounded-full p-3 mr-4">
+                    <img src="trophy-icon.svg" alt="Accuracy" class="icon">
+                </div>
+                <div>
+                    <p class="text-sm text-gray-500">正确率</p>
+                    <p id="accuracy" class="text-2xl font-pixel text-accent">0%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 迷宫和控制区域 -->
+        <div class="flex flex-col lg:flex-row gap-6 items-center lg:items-start justify-center mb-6">
+            <!-- 迷宫容器 -->
+            <div class="bg-white rounded-xl shadow-xl p-4 overflow-x-auto relative">
+                <div id="maze-container" class="flex justify-center relative min-w-[400px] min-h-[400px] items-center">
+                    <div class="text-center text-gray-500">
+                        <img src="play-icon.svg" alt="Play" class="w-12 h-12 mx-auto mb-4">
+                        <p class="text-lg">点击"开始游戏"按钮开始挑战</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 控制面板 - 放在右侧 -->
+            <div class="flex flex-col items-center gap-6">
+                <div class="text-center">
+                    <h3 class="text-xl font-bold text-gray-700 mb-2 flex items-center justify-center">
+                        <img src="gamepad-icon.svg" alt="Controls" class="w-5 h-5 mr-2">
+                        方向控制
+                    </h3>
+                    <p class="text-sm text-gray-500 mb-3">使用方向键或下方按钮移动</p>
+                    
+                    <!-- 键盘提示 -->
+                    <div class="flex justify-center gap-2 mb-4">
+                        <div class="flex flex-col items-center">
+                            <div class="keyboard-control">W</div>
+                            <div class="text-xs mt-1">上</div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="keyboard-control">S</div>
+                            <div class="text-xs mt-1">下</div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="keyboard-control">A</div>
+                            <div class="text-xs mt-1">左</div>
+                        </div>
+                        <div class="flex flex-col items-center">
+                            <div class="keyboard-control">D</div>
+                            <div class="text-xs mt-1">右</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 方向控制按钮 -->
+                <div class="grid grid-cols-3 gap-2 md:gap-4">
+                    <button id="up-btn" class="btn-direction col-start-2">
+                        <img src="up-arrow.svg" alt="Up" class="w-8 h-8">
+                    </button>
+                    <button id="left-btn" class="btn-direction">
+                        <img src="left-arrow.svg" alt="Left" class="w-8 h-8">
+                    </button>
+                    <button id="down-btn" class="btn-direction">
+                        <img src="down-arrow.svg" alt="Down" class="w-8 h-8">
+                    </button>
+                    <button id="right-btn" class="btn-direction">
+                        <img src="right-arrow.svg" alt="Right" class="w-8 h-8">
+                    </button>
+                </div>
+                
+                <!-- 其他控制按钮 -->
+                <div class="flex flex-wrap justify-center gap-4 w-full">
+                    <button id="start-btn" class="btn-game bg-primary hover:bg-primary/90 focus:ring-primary">
+                        <img src="play-icon.svg" alt="Play" class="w-5 h-5 mr-2 inline">
+                        开始游戏
+                    </button>
+                    <button id="reset-btn" class="btn-game bg-gray-600 hover:bg-gray-700 focus:ring-gray-500 hidden">
+                        <img src="refresh-icon.svg" alt="Reset" class="w-5 h-5 mr-2 inline">
+                        重新开始
+                    </button>
+                    <button id="hint-btn" class="btn-game bg-accent hover:bg-accent/90 focus:ring-accent">
+                        <img src="hint-icon.svg" alt="Hint" class="w-5 h-5 mr-2 inline">
+                        路径提示
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 问题弹窗 -->
+        <div id="question-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl transform transition-all">
+                <h2 class="text-2xl font-pixel text-primary mb-4 text-center">回答问题</h2>
+                <div class="text-center mb-6">
+                    <p id="question-text" class="text-3xl font-bold mb-2">7 + 8 = ?</p>
+                    <p class="text-gray-500">正确回答才能继续前进</p>
+                    <div id="question-hint" class="question-hint hidden"></div>
+                </div>
+                <div class="mb-4">
+                    <input type="number" id="answer-input" class="w-full px-4 py-3 rounded-lg border-2 border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 text-xl text-center" placeholder="输入答案">
+                </div>
+                <div class="flex gap-3">
+                    <button id="submit-answer" class="flex-1 btn-game bg-primary hover:bg-primary/90 focus:ring-primary">
+                        <img src="check-icon.svg" alt="Submit" class="w-5 h-5 mr-2 inline">
+                        提交
+                    </button>
+                    <button id="hint-modal-btn" class="flex-1 btn-game bg-yellow-500 hover:bg-yellow-600 focus:ring-yellow-300">
+                        <img src="hint-icon.svg" alt="Hint" class="w-5 h-5 mr-2 inline">
+                        提示
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 通关弹窗 -->
+        <div id="success-modal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden">
+            <div class="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl transform transition-all">
+                <div class="text-center mb-4">
+                    <div class="inline-block p-4 rounded-full bg-green-100 mb-4 animate-bounce-slow">
+                        <img src="trophy-icon.svg" alt="Trophy" class="w-10 h-10">
+                    </div>
+                    <h2 class="text-2xl font-pixel text-primary mb-2">恭喜通关！</h2>
+                    <p class="text-lg mb-4">你成功完成了数字迷宫挑战！</p>
+                    <div class="bg-gray-100 rounded-lg p-4 mb-4">
+                        <p class="text-gray-600 mb-2">总用时：<span id="final-time" class="font-bold text-primary">00:00</span></p>
+                        <p class="text-gray-600 mb-2">完成题目：<span id="final-questions" class="font-bold text-secondary">0/0</span></p>
+                        <p class="text-gray-600">正确率：<span id="final-accuracy" class="font-bold text-accent">0%</span></p>
+                    </div>
+                    <p id="time-comparison" class="text-gray-600 italic mb-6">这么长的时间够做很多有趣的事情呢！</p>
+                </div>
+                <button id="play-again" class="w-full btn-game bg-primary hover:bg-primary/90 focus:ring-primary">
+                    <img src="refresh-icon.svg" alt="Play Again" class="w-5 h-5 mr-2 inline">
+                    再玩一次
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-4 text-center">
+        <p class="text-sm">数字迷宫 © 2025 | 100以内的运算</p>
+    </footer>
+
+    <script>
+        // 游戏配置
+        const config = {
+            mazeSize: 10, // 迷宫大小
+            questionFrequency: 0.15, // 问题出现频率
+            minNumber: 1, // 数学题最小数字
+            maxNumber: 100, // 数学题最大数字
+        };
+
+        // 游戏状态
+        const gameState = {
+            maze: [], // 迷宫数据
+            playerPosition: { x: 0, y: 0 }, // 玩家位置
+            startX: 0, // 起点X
+            startY: 0, // 起点Y
+            endX: 0, // 终点X
+            endY: 0, // 终点Y
+            startTime: null, // 开始时间
+            timerInterval: null, // 计时器间隔
+            elapsedTime: 0, // 已用时间（秒）
+            questionsAnswered: 0, // 已回答问题数
+            totalQuestions: 0, // 总问题数
+            correctAnswers: 0, // 正确回答数
+            gameStarted: false, // 游戏是否开始
+            waitingForAnswer: false, // 是否等待答案
+            currentQuestion: null, // 当前问题
+            path: [], // 迷宫路径
+            hintUsed: false, // 是否使用提示
+            rendering: false, // 是否正在渲染
+            pathVisible: false // 路径是否可见
+        };
+
+        // DOM元素
+        let mazeContainer, startBtn, resetBtn, hintBtn, timer, questionsCount, accuracy;
+        let questionModal, questionText, answerInput, submitAnswer, hintModalBtn, questionHint;
+        let successModal, finalTime, finalQuestions, finalAccuracy, timeComparison, playAgain;
+        let upBtn, downBtn, leftBtn, rightBtn;
+
+        // 初始化DOM元素
+        function initDOM() {
+            mazeContainer = document.getElementById('maze-container');
+            startBtn = document.getElementById('start-btn');
+            resetBtn = document.getElementById('reset-btn');
+            hintBtn = document.getElementById('hint-btn');
+            timer = document.getElementById('timer');
+            questionsCount = document.getElementById('questions-count');
+            accuracy = document.getElementById('accuracy');
+            questionModal = document.getElementById('question-modal');
+            questionText = document.getElementById('question-text');
+            answerInput = document.getElementById('answer-input');
+            submitAnswer = document.getElementById('submit-answer');
+            hintModalBtn = document.getElementById('hint-modal-btn');
+            questionHint = document.getElementById('question-hint');
+            successModal = document.getElementById('success-modal');
+            finalTime = document.getElementById('final-time');
+            finalQuestions = document.getElementById('final-questions');
+            finalAccuracy = document.getElementById('final-accuracy');
+            timeComparison = document.getElementById('time-comparison');
+            playAgain = document.getElementById('play-again');
+            upBtn = document.getElementById('up-btn');
+            downBtn = document.getElementById('down-btn');
+            leftBtn = document.getElementById('left-btn');
+            rightBtn = document.getElementById('right-btn');
+        }
+
+        // 生成迷宫 - 修复版本
+        function generateMaze() {
+            // 创建空迷宫 - 全部为墙
+            const maze = Array(config.mazeSize).fill().map(() => Array(config.mazeSize).fill(1));
+            
+            // 随机起点和终点
+            const startX = 0;
+            const startY = Math.floor(Math.random() * config.mazeSize);
+            const endX = config.mazeSize - 1;
+            const endY = Math.floor(Math.random() * config.mazeSize);
+            
+            // 设置起点和终点
+            maze[startY][startX] = 0;
+            maze[endY][endX] = 0;
+            
+            // 使用深度优先搜索生成迷宫路径 - 修复连通性问题
+            const stack = [{ x: startX, y: startY }];
+            const directions = [
+                { dx: 2, dy: 0 },
+                { dx: -2, dy: 0 },
+                { dx: 0, dy: 2 },
+                { dx: 0, dy: -2 }
+            ];
+            
+            // 确保所有单元格都被访问过
+            const visited = Array(config.mazeSize).fill().map(() => Array(config.mazeSize).fill(false));
+            visited[startY][startX] = true;
+            
+            while (stack.length > 0) {
+                const current = stack[stack.length - 1];
+                const unvisitedNeighbors = [];
+                
+                // 检查四个方向的邻居
+                for (const dir of directions) {
+                    const nx = current.x + dir.dx;
+                    const ny = current.y + dir.dy;
+                    
+                    if (nx >= 0 && nx < config.mazeSize && ny >= 0 && ny < config.mazeSize && !visited[ny][nx]) {
+                        unvisitedNeighbors.push({ dx: dir.dx, dy: dir.dy, nx, ny });
+                    }
+                }
+                
+                if (unvisitedNeighbors.length > 0) {
+                    // 随机选择一个未访问的邻居
+                    const randomNeighbor = unvisitedNeighbors[Math.floor(Math.random() * unvisitedNeighbors.length)];
+                    
+                    // 打通墙壁
+                    const wallX = current.x + randomNeighbor.dx / 2;
+                    const wallY = current.y + randomNeighbor.dy / 2;
+                    maze[wallY][wallX] = 0;
+                    maze[randomNeighbor.ny][randomNeighbor.nx] = 0;
+                    
+                    // 标记为已访问
+                    visited[randomNeighbor.ny][randomNeighbor.nx] = true;
+                    
+                    // 将邻居加入栈
+                    stack.push({ x: randomNeighbor.nx, y: randomNeighbor.ny });
+                } else {
+                    // 回溯
+                    stack.pop();
+                }
+            }
+            
+            // 确保终点被访问到
+            if (!visited[endY][endX]) {
+                // 如果终点未被访问，创建一条路径到终点
+                let x = endX, y = endY;
+                while (!visited[y][x]) {
+                    const dirs = [
+                        { dx: -1, dy: 0 },
+                        { dx: 1, dy: 0 },
+                        { dx: 0, dy: -1 },
+                        { dx: 0, dy: 1 }
+                    ];
+                    
+                    // 随机选择一个方向
+                    const dir = dirs[Math.floor(Math.random() * dirs.length)];
+                    const newX = x + dir.dx;
+                    const newY = y + dir.dy;
+                    
+                    if (newX >= 0 && newX < config.mazeSize && newY >= 0 && newY < config.mazeSize) {
+                        maze[y][x] = 0;
+                        x = newX;
+                        y = newY;
+                    }
+                }
+            }
+            
+            // 记录迷宫路径
+            const path = findPath(maze, startX, startY, endX, endY);
+            
+            return { maze, startX, startY, endX, endY, path };
+        }
+
+        // 寻找从起点到终点的路径
+        function findPath(maze, startX, startY, endX, endY) {
+            const visited = Array(config.mazeSize).fill().map(() => Array(config.mazeSize).fill(false));
+            const queue = [{ x: startX, y: startY, path: [] }];
+            const directions = [
+                { dx: 1, dy: 0 },
+                { dx: -1, dy: 0 },
+                { dx: 0, dy: 1 },
+                { dx: 0, dy: -1 }
+            ];
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                
+                if (current.x === endX && current.y === endY) {
+                    return [...current.path, { x: endX, y: endY }];
+                }
+                
+                if (visited[current.y][current.x]) {
+                    continue;
+                }
+                
+                visited[current.y][current.x] = true;
+                
+                for (const dir of directions) {
+                    const nx = current.x + dir.dx;
+                    const ny = current.y + dir.dy;
+                    
+                    if (nx >= 0 && nx < config.mazeSize && ny >= 0 && ny < config.mazeSize && 
+                        maze[ny][nx] === 0 && !visited[ny][nx]) {
+                        queue.push({ 
+                            x: nx, 
+                            y: ny, 
+                            path: [...current.path, { x: current.x, y: current.y }] 
+                        });
+                    }
+                }
+            }
+            
+            return [];
+        }
+
+        // 生成数学问题（包括加减乘除）
+        function generateQuestion() {
+            const operations = ['+', '-', '×', '÷'];
+            const operation = operations[Math.floor(Math.random() * operations.length)];
+            let a, b, answer;
+            
+            if (operation === '+') {
+                a = Math.floor(Math.random() * (config.maxNumber - config.minNumber + 1)) + config.minNumber;
+                b = Math.floor(Math.random() * (config.maxNumber - config.minNumber + 1)) + config.minNumber;
+                // 确保和不超过100
+                if (a + b > 100) {
+                    b = 100 - a;
+                }
+                answer = a + b;
+            } else if (operation === '-') {
+                // 确保减法结果为正数
+                a = Math.floor(Math.random() * (config.maxNumber - config.minNumber + 1)) + config.minNumber + 10;
+                b = Math.floor(Math.random() * (a - config.minNumber + 1)) + config.minNumber;
+                answer = a - b;
+            } else if (operation === '×') {
+                // 乘法题（九九乘法表）
+                a = Math.floor(Math.random() * 9) + 1; // 1-9
+                b = Math.floor(Math.random() * 9) + 1; // 1-9
+                answer = a * b;
+            } else {
+                // 除法题（九九乘法表的逆运算）
+                const divisor = Math.floor(Math.random() * 9) + 1; // 1-9
+                const quotient = Math.floor(Math.random() * 9) + 1; // 1-9
+                a = divisor * quotient;
+                b = divisor;
+                answer = quotient;
+            }
+            
+            return {
+                question: `${a} ${operation} ${b} = ?`,
+                answer,
+                a,
+                b,
+                operation
+            };
+        }
+
+        // 渲染迷宫
+        function renderMaze() {
+            mazeContainer.innerHTML = '';
+            const loadingOverlay = document.createElement('div');
+            loadingOverlay.className = 'maze-loading';
+            loadingOverlay.innerHTML = '<div class="text-center"><img src="loading-icon.svg" alt="Loading" class="w-10 h-10 animate-spin mx-auto mb-2"><p>生成迷宫中...</p></div>';
+            mazeContainer.appendChild(loadingOverlay);
+            
+            gameState.rendering = true;
+            
+            setTimeout(() => {
+                const mazeGrid = document.createElement('div');
+                mazeGrid.className = 'grid grid-cols-[repeat(' + config.mazeSize + ',auto)] gap-1';
+                
+                for (let y = 0; y < config.mazeSize; y++) {
+                    for (let x = 0; x < config.mazeSize; x++) {
+                        const cell = document.createElement('div');
+                        cell.id = `cell-${x}-${y}`;
+                        
+                        if (x === gameState.startX && y === gameState.startY) {
+                            cell.className = 'maze-cell maze-start';
+                            cell.innerHTML = '<img src="start-icon.svg" alt="Start" class="w-6 h-6">';
+                        } else if (x === gameState.endX && y === gameState.endY) {
+                            cell.className = 'maze-cell maze-end';
+                            cell.innerHTML = '<img src="flag-icon.svg" alt="End" class="w-6 h-6">';
+                        } else if (gameState.maze[y][x] === 1) {
+                            cell.className = 'maze-cell maze-wall';
+                        } else {
+                            // 检查是否是路径的一部分
+                            const isPath = gameState.path.some(pos => pos.x === x && pos.y === y);
+                            cell.className = 'maze-cell maze-path' + (isPath && gameState.pathVisible ? ' maze-path-highlight' : '');
+                            
+                            // 随机在路径上放置问题
+                            if (Math.random() < config.questionFrequency && !(x === gameState.startX && y === gameState.startY) && isPath) {
+                                cell.classList.add('maze-question');
+                                cell.dataset.hasQuestion = 'true';
+                            }
+                        }
+                        
+                        mazeGrid.appendChild(cell);
+                    }
+                }
+                
+                // 添加玩家
+                const player = document.createElement('div');
+                player.id = 'player';
+                player.className = 'maze-player absolute opacity-0'; // 初始不可见
+                player.innerHTML = '<img src="player-icon.svg" alt="Player" class="w-8 h-8">';
+                
+                mazeContainer.appendChild(mazeGrid);
+                mazeContainer.appendChild(player);
+                
+                // 确保DOM布局完成后再更新位置
+                setTimeout(() => {
+                    if (loadingOverlay.parentNode === mazeContainer) {
+                        mazeContainer.removeChild(loadingOverlay);
+                    }
+                    
+                    gameState.playerPosition = { x: gameState.startX, y: gameState.startY };
+                    updatePlayerPosition();
+                    
+                    // 玩家位置更新后淡入显示
+                    setTimeout(() => {
+                        player.classList.remove('opacity-0');
+                    }, 100);
+                    
+                    gameState.rendering = false;
+                }, 50);
+            }, 100);
+        }
+
+        // 更新玩家位置
+        function updatePlayerPosition() {
+            const player = document.getElementById('player');
+            if (!player) return;
+            
+            const cell = document.getElementById(`cell-${gameState.playerPosition.x}-${gameState.playerPosition.y}`);
+            
+            if (cell && player) {
+                const cellRect = cell.getBoundingClientRect();
+                const mazeRect = mazeContainer.getBoundingClientRect();
+                
+                // 添加额外的检查确保位置有效
+                if (cellRect.width > 0 && cellRect.height > 0) {
+                    player.style.left = `${cellRect.left - mazeRect.left + cellRect.width / 2 - 20}px`;
+                    player.style.top = `${cellRect.top - mazeRect.top + cellRect.height / 2 - 20}px`;
+                } else {
+                    // 如果获取的位置无效，延迟重试
+                    setTimeout(() => {
+                        updatePlayerPosition();
+                    }, 100);
+                }
+            }
+        }
+
+        // 移动玩家
+        function movePlayer(dx, dy) {
+            if (gameState.waitingForAnswer || !gameState.gameStarted || gameState.rendering) return;
+            
+            const newX = gameState.playerPosition.x + dx;
+            const newY = gameState.playerPosition.y + dy;
+            
+            // 检查是否可以移动
+            if (newX >= 0 && newX < config.mazeSize && newY >= 0 && newY < config.mazeSize && 
+                gameState.maze[newY][newX] === 0) {
+                
+                gameState.playerPosition = { x: newX, y: newY };
+                updatePlayerPosition();
+                
+                // 检查是否到达终点
+                if (newX === gameState.endX && newY === gameState.endY) {
+                    endGame();
+                    return;
+                }
+                
+                // 检查是否遇到问题
+                const cell = document.getElementById(`cell-${newX}-${newY}`);
+                if (cell && cell.dataset.hasQuestion === 'true') {
+                    // 生成问题
+                    const question = generateQuestion();
+                    gameState.currentQuestion = question;
+                    gameState.totalQuestions++;
+                    gameState.waitingForAnswer = true;
+                    gameState.hintUsed = false;
+                    
+                    // 显示问题弹窗
+                    questionText.textContent = question.question;
+                    questionHint.classList.add('hidden');
+                    answerInput.value = '';
+                    answerInput.focus();
+                    questionModal.classList.remove('hidden');
+                    
+                    // 标记这个格子问题已被回答
+                    cell.dataset.hasQuestion = 'false';
+                    cell.classList.remove('maze-question');
+                }
+            }
+        }
+
+        // 开始游戏
+        function startGame() {
+            // 生成迷宫
+            const mazeData = generateMaze();
+            gameState.maze = mazeData.maze;
+            gameState.startX = mazeData.startX;
+            gameState.startY = mazeData.startY;
+            gameState.endX = mazeData.endX;
+            gameState.endY = mazeData.endY;
+            gameState.path = mazeData.path;
+            
+            // 重置游戏状态
+            gameState.gameStarted = true;
+            gameState.waitingForAnswer = false;
+            gameState.elapsedTime = 0;
+            gameState.questionsAnswered = 0;
+            gameState.totalQuestions = 0;
+            gameState.correctAnswers = 0;
+            gameState.hintUsed = false;
+            gameState.pathVisible = false;
+            
+            // 更新UI
+            renderMaze();
+            startBtn.classList.add('hidden');
+            resetBtn.classList.remove('hidden');
+            hintBtn.classList.remove('hidden');
+            questionsCount.textContent = `0/0`;
+            accuracy.textContent = `0%`;
+            timer.textContent = `00:00`;
+            
+            // 开始计时
+            gameState.startTime = new Date();
+            gameState.timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        // 更新计时器
+        function updateTimer() {
+            gameState.elapsedTime = Math.floor((new Date() - gameState.startTime) / 1000);
+            const minutes = Math.floor(gameState.elapsedTime / 60).toString().padStart(2, '0');
+            const seconds = (gameState.elapsedTime % 60).toString().padStart(2, '0');
+            timer.textContent = `${minutes}:${seconds}`;
+        }
+
+        // 处理按钮点击事件
+        function handleButtonClick(direction) {
+            if (gameState.waitingForAnswer) return;
+            
+            switch (direction) {
+                case 'up':
+                    movePlayer(0, -1);
+                    break;
+                case 'down':
+                    movePlayer(0, 1);
+                    break;
+                case 'left':
+                    movePlayer(-1, 0);
+                    break;
+                case 'right':
+                    movePlayer(1, 0);
+                    break;
+            }
+        }
+
+        // 检查答案
+        function checkAnswer() {
+            const userAnswer = parseInt(answerInput.value);
+            
+            if (isNaN(userAnswer)) {
+                answerInput.classList.add('border-red-500');
+                setTimeout(() => {
+                    answerInput.classList.remove('border-red-500');
+                }, 1000);
+                return;
+            }
+            
+            gameState.questionsAnswered++;
+            
+            if (userAnswer === gameState.currentQuestion.answer) {
+                // 如果使用了提示，不算正确
+                if (!gameState.hintUsed) {
+                    gameState.correctAnswers++;
+                }
+                
+                // 正确回答 - 显示成功提示
+                answerInput.classList.add('border-green-500');
+                const successMsg = document.createElement('p');
+                successMsg.className = 'text-sm text-green-500 mt-2';
+                successMsg.textContent = '回答正确！';
+                successMsg.id = 'success-message';
+                
+                // 移除任何现有的错误提示
+                const existingError = document.getElementById('error-message');
+                if (existingError) {
+                    existingError.remove();
+                }
+                
+                answerInput.parentNode.insertBefore(successMsg, answerInput.nextSibling);
+                
+                setTimeout(() => {
+                    answerInput.classList.remove('border-green-500');
+                    successMsg.remove(); // 移除成功提示
+                    questionModal.classList.add('hidden');
+                    gameState.waitingForAnswer = false;
+                    
+                    // 更新统计信息
+                    questionsCount.textContent = `${gameState.correctAnswers}/${gameState.totalQuestions}`;
+                    accuracy.textContent = `${Math.round((gameState.correctAnswers / gameState.totalQuestions) * 100)}%`;
+                }, 1000);
+            } else {
+                // 错误回答 - 玩家必须留在原地
+                answerInput.classList.add('border-red-500');
+                setTimeout(() => {
+                    answerInput.classList.remove('border-red-500');
+                    // 错误时不关闭弹窗
+                    answerInput.value = ''; // 清空输入框
+                    answerInput.focus(); // 重新聚焦到输入框
+                    
+                    // 显示错误提示
+                    const errorMsg = document.createElement('p');
+                    errorMsg.className = 'text-sm text-red-500 mt-2';
+                    errorMsg.textContent = '答案错误，请再试一次！';
+                    errorMsg.id = 'error-message';
+                    
+                    // 如果已有错误提示，先移除
+                    const existingError = document.getElementById('error-message');
+                    if (existingError) {
+                        existingError.remove();
+                    }
+                    
+                    // 移除任何现有的成功提示
+                    const existingSuccess = document.getElementById('success-message');
+                    if (existingSuccess) {
+                        existingSuccess.remove();
+                    }
+                    
+                    answerInput.parentNode.insertBefore(errorMsg, answerInput.nextSibling);
+                    
+                    // 更新统计信息（仍然显示，但不增加正确计数）
+                    questionsCount.textContent = `${gameState.correctAnswers}/${gameState.totalQuestions}`;
+                    accuracy.textContent = `${Math.round((gameState.correctAnswers / gameState.totalQuestions) * 100)}%`;
+                }, 1000);
+            }
+        }
+       
+        // 显示问题提示
+        function showQuestionHint() {
+            if (!gameState.currentQuestion) return;
+            
+            gameState.hintUsed = true;
+            
+            const question = gameState.currentQuestion;
+            let hintText = "";
+            
+            if (question.operation === '+') {
+                hintText = `提示: ${question.a} + ${question.b} = ${question.answer}`;
+            } else if (question.operation === '-') {
+                hintText = `提示: ${question.a} - ${question.b} = ${question.answer}`;
+            } else if (question.operation === '×') {
+                hintText = `提示: ${question.a} × ${question.b} = ${question.answer}`;
+            } else {
+                hintText = `提示: ${question.a} ÷ ${question.b} = ${question.answer}`;
+            }
+            
+            questionHint.textContent = hintText;
+            questionHint.classList.remove('hidden');
+        }
+
+        // 结束游戏
+        function endGame() {
+            clearInterval(gameState.timerInterval);
+            gameState.gameStarted = false;
+            
+            // 显示通关弹窗
+            const minutes = Math.floor(gameState.elapsedTime / 60).toString().padStart(2, '0');
+            const seconds = (gameState.elapsedTime % 60).toString().padStart(2, '0');
+            finalTime.textContent = `${minutes}:${seconds}`;
+            finalQuestions.textContent = `${gameState.correctAnswers}/${gameState.totalQuestions}`;
+            finalAccuracy.textContent = `${Math.round((gameState.correctAnswers / gameState.totalQuestions) * 100)}%`;
+            
+            // 根据用时生成有趣的比较
+            generateTimeComparison(gameState.elapsedTime);
+            
+            successModal.classList.remove('hidden');
+        }
+
+        // 生成时间比较描述
+        function generateTimeComparison(seconds) {
+            const comparisons = [
+                `${seconds}秒足够你阅读${Math.round(seconds/20)}段短文。`,
+                `在${seconds}秒内，你可以跳绳约${Math.round(seconds/3)}次。`,
+                `闪电侠可以在${seconds}秒内绕地球跑${Math.round(seconds/133)}圈。`,
+                `用${seconds}秒你可以煮一碗美味的泡面。`,
+                `光在${seconds}秒内可以传播约${Math.round(seconds*300000)}公里，足够往返月球${Math.round(seconds*300000/768000)}次。`,
+                `在${seconds}秒内，国际空间站可以绕地球飞行约${Math.round(seconds/5556)}圈。`,
+                `蜂鸟在${seconds}秒内可以扇动翅膀约${Math.round(seconds*80)}次。`,
+                `在${seconds}秒内，你可以步行约${Math.round(seconds*1.4)}米。`,
+                `普通冰箱压缩机在${seconds}秒内可以运行约${Math.round(seconds/300)}个循环。`,
+                `在${seconds}秒内，太阳可以向地球发射约${Math.round(seconds*1.5*10**22)}个光子。`
+            ];
+            
+            // 根据时间随机选择一个比较
+            timeComparison.textContent = comparisons[Math.floor(Math.random() * comparisons.length)];
+        }
+
+        // 显示迷宫提示
+        function showMazeHint() {
+            if (!gameState.gameStarted || gameState.waitingForAnswer) return;
+            
+            // 切换路径可见性
+            gameState.pathVisible = !gameState.pathVisible;
+            
+            // 更新所有路径单元格
+            for (let y = 0; y < config.mazeSize; y++) {
+                for (let x = 0; x < config.mazeSize; x++) {
+                    const cell = document.getElementById(`cell-${x}-${y}`);
+                    if (cell) {
+                        const isPath = gameState.path.some(pos => pos.x === x && pos.y === y);
+                        if (isPath && cell.classList.contains('maze-path')) {
+                            if (gameState.pathVisible) {
+                                cell.classList.add('maze-path-highlight');
+                            } else {
+                                cell.classList.remove('maze-path-highlight');
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // 更新按钮文本
+            hintBtn.innerHTML = gameState.pathVisible 
+                ? '<img src="eye-off-icon.svg" alt="Hide Path" class="w-5 h-5 mr-2 inline">隐藏路径' 
+                : '<img src="hint-icon.svg" alt="Show Path" class="w-5 h-5 mr-2 inline">路径提示';
+        }
+
+        // 处理键盘事件
+        function handleKeyDown(e) {
+            if (gameState.waitingForAnswer) return;
+            
+            switch (e.key.toLowerCase()) {
+                case 'arrowup':
+                case 'w':
+                    handleButtonClick('up');
+                    break;
+                case 'arrowdown':
+                case 's':
+                    handleButtonClick('down');
+                    break;
+                case 'arrowleft':
+                case 'a':
+                    handleButtonClick('left');
+                    break;
+                case 'arrowright':
+                case 'd':
+                    handleButtonClick('right');
+                    break;
+                case 'enter':
+                    if (document.activeElement === answerInput) {
+                        checkAnswer();
+                    }
+                    break;
+            }
+        }
+
+        // 初始化游戏
+        function initGame() {
+            initDOM();
+            
+            // 添加事件监听器
+            startBtn.addEventListener('click', startGame);
+            resetBtn.addEventListener('click', startGame);
+            hintBtn.addEventListener('click', showMazeHint);
+            submitAnswer.addEventListener('click', checkAnswer);
+            hintModalBtn.addEventListener('click', showQuestionHint);
+            answerInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    checkAnswer();
+                }
+            });
+            playAgain.addEventListener('click', () => {
+                successModal.classList.add('hidden');
+                startGame();
+            });
+            
+            // 添加方向按钮事件
+            upBtn.addEventListener('click', () => handleButtonClick('up'));
+            downBtn.addEventListener('click', () => handleButtonClick('down'));
+            leftBtn.addEventListener('click', () => handleButtonClick('left'));
+            rightBtn.addEventListener('click', () => handleButtonClick('right'));
+            
+            // 添加键盘事件监听器
+            document.addEventListener('keydown', handleKeyDown);
+            
+            // 窗口大小变化时更新玩家位置
+            window.addEventListener('resize', () => {
+                if (gameState.gameStarted) {
+                    updatePlayerPosition();
+                }
+            });
+        }
+
+        // 页面加载完成后初始化游戏
+        document.addEventListener('DOMContentLoaded', initGame);
+    </script>
+</body>
+</html>
