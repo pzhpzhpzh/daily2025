@@ -30,7 +30,7 @@
                 content-visibility: auto;
             }
             .maze-cell {
-                @apply w-12 h-12 border border-gray-300 flex items-center justify-center text-xl font-bold transition-all duration-200;
+                @apply w-12 h-12 border border-gray-300 flex items-center justify-center text-xl font-bold transition-all duration-200 relative;
             }
             .maze-wall {
                 @apply bg-gray-700 border-gray-800;
@@ -45,7 +45,7 @@
                 @apply bg-red-500 text-white;
             }
             .maze-player {
-                @apply bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transform transition-all duration-300;
+                @apply bg-primary text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transform transition-all duration-300 z-10;
             }
             .maze-question {
                 @apply bg-accent/20 border-accent;
@@ -56,6 +56,14 @@
             .btn-direction {
                 @apply w-16 h-16 md:w-20 md:h-20 rounded-full bg-primary/90 text-white flex items-center justify-center shadow-lg hover:bg-primary transition-all duration-300;
             }
+		.btn-direction-mid {
+		  @apply w-16 h-16 md:w-20 md:h-20 rounded-full 
+		         bg-sky-400/10 text-white 
+		         flex items-center justify-center 
+		         shadow-lg 
+		         hover:bg-sky-500/20 
+		         transition-all duration-300;
+		}
             .animate-pulse-slow {
                 animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
             }
@@ -68,10 +76,23 @@
             }
             @keyframes bounce {
                 0%, 100% { transform: translateY(0); }
-                50% { transform: translateY(-10px); }
+                50% { transform: translateY(-3px); }
+            }
+            @keyframes floatAndFade {
+                0% {
+                    transform: translateY(0) rotate(0deg);
+                    opacity: 1;
+                }
+                100% {
+                    transform: translateY(-40px) rotate(10deg);
+                    opacity: 0;
+                }
             }
             .animate-bounce-slow {
                 animation: bounce 2s infinite;
+            }
+            .animate-float-fade {
+                animation: floatAndFade 1.2s ease-out forwards;
             }
             .question-hint {
                 @apply bg-yellow-100 text-yellow-800 py-2 px-4 rounded-lg text-sm mt-3 transition-all duration-300;
@@ -85,6 +106,9 @@
             .icon {
                 @apply w-6 h-6;
             }
+            .question-icon {
+                @apply absolute w-8 h-8 animate-bounce-slow;
+            }
         }
     </style>
     <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
@@ -96,9 +120,7 @@
         <div class="text-center mb-6">
             <h1 class="text-[clamp(2rem,5vw,3.5rem)] font-pixel text-primary mb-2 tracking-wider">数字迷宫</h1>
             <p class="text-gray-600 text-lg max-w-2xl mx-auto">通过计算数学题，找到从入口到出口的路径！</p>
-            <div class="mt-4 flex justify-center">
-              
-            </div>
+         
         </div>
 
         <!-- 游戏状态面板 -->
@@ -174,21 +196,32 @@
                     </div>
                 </div>
                 
-                <!-- 方向控制按钮 -->
-                <div class="grid grid-cols-3 gap-2 md:gap-4">
-                    <button id="up-btn" class="btn-direction col-start-2">
-                        <img src="up-arrow.svg" alt="Up" class="w-8 h-8">
-                    </button>
-                    <button id="left-btn" class="btn-direction">
-                        <img src="left-arrow.svg" alt="Left" class="w-8 h-8">
-                    </button>
-                    <button id="down-btn" class="btn-direction">
-                        <img src="down-arrow.svg" alt="Down" class="w-8 h-8">
-                    </button>
-                    <button id="right-btn" class="btn-direction">
-                        <img src="right-arrow.svg" alt="Right" class="w-8 h-8">
-                    </button>
-                </div>
+        <div class="grid grid-cols-3 grid-rows-3 gap-2 md:gap-4 place-items-center">
+          <!-- 上按钮 -->
+          <button id="up-btn" class="btn-direction row-start-1 col-start-2">
+            <img src="up-arrow.svg" alt="Up" class="w-8 h-8">
+          </button>
+        
+          <!-- 左按钮 -->
+          <button id="left-btn" class="btn-direction row-start-2 col-start-1">
+            <img src="left-arrow.svg" alt="Left" class="w-8 h-8">
+          </button>
+        
+	   <!-- 中间确认按钮 -->
+		<button id="confirm-btn" class="btn-direction-mid row-start-2 col-start-2">
+		  <img src="confirm-icon.svg" alt="Confirm" class="w-8 h-8">
+		</button>
+			
+          <!-- 右按钮 -->
+          <button id="right-btn" class="btn-direction row-start-2 col-start-3">
+            <img src="right-arrow.svg" alt="Right" class="w-8 h-8">
+          </button>
+        
+          <!-- 下按钮 -->
+          <button id="down-btn" class="btn-direction row-start-3 col-start-2">
+            <img src="down-arrow.svg" alt="Down" class="w-8 h-8">
+          </button>
+        </div>
                 
                 <!-- 其他控制按钮 -->
                 <div class="flex flex-wrap justify-center gap-4 w-full">
@@ -259,14 +292,14 @@
 
     <!-- 页脚 -->
     <footer class="bg-dark text-white py-4 text-center">
-        <p class="text-sm">数字迷宫 © 2025 | 100以内的运算</p>
+        <p class="text-sm">数字迷宫 © 2025 | 100以内的运算 </p>
     </footer>
 
     <script>
         // 游戏配置
         const config = {
             mazeSize: 10, // 迷宫大小
-            questionFrequency: 0.15, // 问题出现频率
+            questionFrequency: 0.12, // 问题出现频率（提高以展示效果）
             minNumber: 1, // 数学题最小数字
             maxNumber: 100, // 数学题最大数字
         };
@@ -327,7 +360,7 @@
             rightBtn = document.getElementById('right-btn');
         }
 
-        // 生成迷宫 - 修复版本
+        // 生成迷宫
         function generateMaze() {
             // 创建空迷宫 - 全部为墙
             const maze = Array(config.mazeSize).fill().map(() => Array(config.mazeSize).fill(1));
@@ -342,7 +375,7 @@
             maze[startY][startX] = 0;
             maze[endY][endX] = 0;
             
-            // 使用深度优先搜索生成迷宫路径 - 修复连通性问题
+            // 使用深度优先搜索生成迷宫路径
             const stack = [{ x: startX, y: startY }];
             const directions = [
                 { dx: 2, dy: 0 },
@@ -541,6 +574,13 @@
                             if (Math.random() < config.questionFrequency && !(x === gameState.startX && y === gameState.startY) && isPath) {
                                 cell.classList.add('maze-question');
                                 cell.dataset.hasQuestion = 'true';
+                                
+                                // 添加问题图标
+                                const icon = document.createElement('img');
+                                icon.src = 'question-icon.svg';
+                                icon.alt = 'Question';
+                                icon.className = 'question-icon';
+                                cell.appendChild(icon);
                             }
                         }
                         
@@ -623,6 +663,12 @@
                 // 检查是否遇到问题
                 const cell = document.getElementById(`cell-${newX}-${newY}`);
                 if (cell && cell.dataset.hasQuestion === 'true') {
+                    // 立即移除问题图标（不播放动画）
+                    const icon = cell.querySelector('.question-icon');
+                    if (icon) {
+                        cell.removeChild(icon);
+                    }
+                    
                     // 生成问题
                     const question = generateQuestion();
                     gameState.currentQuestion = question;
